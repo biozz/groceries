@@ -1,0 +1,23 @@
+.pointer {
+	cursor: pointer;
+}
+
+.item-name {
+	width: 90%;
+	margin-top: 2px;
+	text-overflow: ellipsis;
+}
+.item-actions {
+	position: absolute;
+	right:  5px;
+	top: 0px;
+}
+
+.groceries-modal {
+	display: block;
+    background-color: rgba(0,0,0,0.3);
+}
+
+[v-cloak] {
+	display: none;
+}

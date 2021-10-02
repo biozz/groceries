@@ -1,0 +1,127 @@
+<!doctype html>
+  <html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="/static/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/style.css" rel="stylesheet">
+    <link rel="icon" href="/static/favicon.ico">
+    <title>Groceries</title>
+  </head>
+  <body>
+    <div id="app" v-cloak>
+      <div class="container">
+        <div class="row">
+          <div class="col-sm-10 col-lg-6 offset-lg-3 offset-sm-1 gy-4">
+            <div class="position-fixed fixed-top">
+              <div class="container">
+                <div class="row">
+                  <div class="col-sm-10 col-lg-6 offset-lg-3 offset-sm-1 gy-1">
+                    <div class="input-group">
+                      <input type="text" class="form-control form-control-sm" v-model="searchText" />
+                      <button class="btn btn-outline-secondary bg-white" @click="clearSearch">X</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <p v-if="loading" class="text-center text-muted">Загрузка...</p>
+              <p v-else-if="searchIsEmpty" class="text-center text-muted">Пусто! Попробуй <u @click="clearSearch" class="pointer">очистить поиск</u> или <u @click="showAddModal" class="pointer">добавить задачу</u>.</p>
+              <p v-else-if="allCompleted && hideCompleted" class="text-center text-muted">Пусто! <u @click="showCompleted" class="pointer">Показать выполненные?</u></p>
+              <div v-else v-for="category in filteredCategories">
+                <p v-if="isGrouped" class="h6 my-1">{{ category }}</p>
+                <ul class="list-group shadow-sm">
+                  <li v-for="item in itemsByCategory(category)" class="list-group-item list-group-item-action">
+                    <input
+                    class="form-check-input float-start me-1 h5"
+                    type="checkbox"
+                    v-model="item.is_checked"
+                    @change="toggle(item)"
+                    />
+                    <div class="overflow-auto item-name">
+                      <span>{{ item.name }}</span>
+                      <div class="item-actions">
+                        <button @click="showEditModal(item)" class="btn btn-link link-secondary">✏️</button>
+                      </div>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div v-if="isModalShown" class="modal show shadow-sm groceries-modal" @click="modalBackdrop">
+                <div class="modal-dialog">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h5 class="modal-title">{{ modalTitle }}</h5>
+                      <button type="button" class="btn-close" @click="closeModal" />
+                    </div>
+                    <div class="modal-body">
+                      <div v-if="isSettingsModal">
+                        <ul class="list pl0 list-unstyled">
+                          <li class="mb3 clearfix">
+                            <input
+                            class="form-check-input float-start me-1 h5"
+                            type="checkbox"
+                            id="isGrouped"
+                            v-model="isGrouped"
+                            />
+                            <label for="isGrouped" class="offset-label">Сгруппировать по категориям</label>
+                          </li>
+                          <li class="mb3 clearfix">
+                            <input
+                            class="form-check-input float-start me-1 h5"
+                            type="checkbox"
+                            id="hideCompleted"
+                            v-model="hideCompleted"
+                            @change="toggleHideEmptyCategories"
+                            />
+                            <label for="hideCompleted" class="offset-label">Скрыть выполненные</label>
+                          </li>
+                        </ul>
+                      </div>
+                      <div v-else>
+                        <div class="mb-3">
+                          <input type="text" v-model="editItemName" class="form-control" placeholder="Название">
+                        </div>
+                        <div class="mb-3">
+                          <input type="text" v-model="editItemCategory" @input="suggestCategories" class="form-control" placeholder="Категория">
+                          <ul v-if="hasSuggestions" class="list-group mt-2">
+                            <li
+                            @click="setCategory(category)"
+                            v-for="category in suggestedCategories"
+                            class="list-group-item list-group-flush list-group-item-light text-small pointer"
+                            >{{category}}</li>
+                          </ul>
+                        </div>
+                        <div v-if="isEditItemModeUpdate">
+                          <button @click="updateItem" class="btn btn-primary">Сохранить</button>&nbsp
+                          <button @click="removeItem" class="btn btn-danger">Удалить</button>
+                        </div>
+                        <div v-else>
+                          <button  @click="addItem" class="btn btn-primary">Добавить</button>
+                        </div>
+                        <span v-if="editItemError">({editItemError})</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div v-else>
+                <!-- special spacer so that buttons don't overlap the list -->
+                <div style="width: 100%; height: 80px" />
+                <div class="fixed-bottom text-center mb-4" style="z-index: 10000">
+                  <button class="btn btn-secondary" @click="showSettingsModal">Настройки</button>&nbsp
+                  <button class="btn btn-success" @click="showAddModal">Добавить</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="static/vue.global.prod.js"></script>
+    <script src="static/script.js"></script>
+  </body>
+  </html>
