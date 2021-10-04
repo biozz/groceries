@@ -1,0 +1,12 @@
+version: '3'
+
+services:
+  app:
+    image: groceries:latest
+    command: :8080 redis:6379
+    depends_on:
+      - redis
+    ports:
+      - "8080:8080"
+  redis:
+    image: redis:latest

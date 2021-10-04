@@ -18,14 +18,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-//go:embed static
-var static embed.FS
-
-//go:embed index.html
-var indexHTML string
-
-var kvconn redis.Conn
-
 const (
 	// Time allowed to write a message to the peer.
 	writeWait = 10 * time.Second
@@ -44,17 +36,27 @@ const (
 )
 
 var (
-	newline = []byte{'\n'}
-	space   = []byte{' '}
+	//go:embed static
+	static embed.FS
+
+	//go:embed index.html
+	indexHTML string
+
+	kvconn redis.Conn
+
+	newline  = []byte{'\n'}
+	space    = []byte{' '}
+	upgrader = websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024}
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-}
-
 func main() {
-	kvconn, err := redis.DialURL("redis://localhost:6379")
+	kvhost := "localhost:6379"
+	bind := ":8080"
+	if len(os.Args) > 2 {
+		bind = os.Args[1]
+		kvhost = os.Args[2]
+	}
+	kvconn, err := redis.DialURL(fmt.Sprintf("redis://%s", kvhost))
 	if err != nil {
 		log.Fatalf("Unable to connect to kv store: %v", err)
 	}
@@ -75,7 +77,7 @@ func main() {
 		serveWS(hub, rw, r)
 	})
 	http.Handle("/", r)
-	log.Fatal(http.ListenAndServe(":8080", handlers.LoggingHandler(os.Stdout, r)))
+	log.Fatal(http.ListenAndServe(bind, handlers.LoggingHandler(os.Stdout, r)))
 }
 
 func IndexHandler(w http.ResponseWriter, r *http.Request) {
