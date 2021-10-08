@@ -27,7 +27,8 @@
             </div>
 
             <div class="mt-4">
-              <p v-if="loading" class="text-center text-muted">Загрузка...</p>
+              <p v-if="error">{{ error }}</p>
+              <p v-else-if="loading" class="text-center text-muted">Загрузка...</p>
               <p v-else-if="searchIsEmpty" class="text-center text-muted">Пусто! Попробуй <u @click="clearSearch" class="pointer">очистить поиск</u> или <u @click="showAddModal" class="pointer">добавить задачу</u>.</p>
               <p v-else-if="allCompleted && hideCompleted" class="text-center text-muted">Пусто! <u @click="showCompleted" class="pointer">Показать выполненные?</u></p>
               <div v-else v-for="category in filteredCategories">

@@ -5,6 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -33,6 +34,9 @@ const (
 
 	// Client ID Header for WebSocket events
 	wsClientIdHeader = "x-ws-client-id"
+
+	// Auth Token header for identifying user
+	authTokenHeader = "x-auth-token"
 )
 
 var (
@@ -47,14 +51,25 @@ var (
 	newline  = []byte{'\n'}
 	space    = []byte{' '}
 	upgrader = websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024}
+
+	users map[string]User
 )
+
+type User struct {
+	Username string `json:"username"`
+}
 
 func main() {
 	kvhost := "localhost:6379"
 	bind := ":8080"
-	if len(os.Args) > 2 {
+	users = map[string]User{
+		"admin": {Username: "admin"},
+	}
+	if len(os.Args) > 3 {
 		bind = os.Args[1]
 		kvhost = os.Args[2]
+		usersFile, _ := ioutil.ReadFile(os.Args[3])
+		json.Unmarshal(usersFile, &users)
 	}
 	kvconn, err := redis.DialURL(fmt.Sprintf("redis://%s", kvhost))
 	if err != nil {
@@ -81,11 +96,6 @@ func main() {
 }
 
 func IndexHandler(w http.ResponseWriter, r *http.Request) {
-	remoteUser := r.Header.Get("Remote-User")
-	if remoteUser == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
 	w.Write([]byte(indexHTML))
 }
 
@@ -102,6 +112,13 @@ type Item struct {
 }
 
 func (h *Handlers) ItemsHandler(w http.ResponseWriter, r *http.Request) {
+	// TODO: rewrite token getter to middleware
+	authToken := r.Header.Get(authTokenHeader)
+	_, ok := users[authToken]
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 	itemKeys, err := redis.ByteSlices(h.kv.Do("KEYS", "item:*"))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -121,11 +138,12 @@ func (h *Handlers) ItemsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) AddItemHandler(w http.ResponseWriter, r *http.Request) {
-	username := r.Header.Get("Remote-User")
-	if username != "" {
-		// find user and add username + id to the item
+	authToken := r.Header.Get(authTokenHeader)
+	_, ok := users[authToken]
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
 	}
-
 	itemKeys, err := redis.ByteSlices(h.kv.Do("KEYS", "item:*"))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -157,6 +175,12 @@ func (h *Handlers) AddItemHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) DeleteItemHandler(w http.ResponseWriter, r *http.Request) {
+	authToken := r.Header.Get(authTokenHeader)
+	_, ok := users[authToken]
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 	itemID := r.URL.Query().Get("id")
 	if itemID == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -180,6 +204,12 @@ func (h *Handlers) DeleteItemHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) EditItemHandler(w http.ResponseWriter, r *http.Request) {
+	authToken := r.Header.Get(authTokenHeader)
+	_, ok := users[authToken]
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 	itemID := r.URL.Query().Get("id")
 	if itemID == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -206,6 +236,12 @@ func (h *Handlers) EditItemHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) ToggleItemHandler(w http.ResponseWriter, r *http.Request) {
+	authToken := r.Header.Get(authTokenHeader)
+	_, ok := users[authToken]
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 	itemID := r.URL.Query().Get("id")
 	if itemID == "" {
 		w.WriteHeader(http.StatusBadRequest)

@@ -9,6 +9,7 @@ let socket = new WebSocket(`${scheme}://${loc.host}/ws?client_id=${clientID}`)
 const app = Vue.createApp({
   data() {
     return {
+      error: null,
       loading: true,
       isModalShown: false,
       modalTitle: "",
@@ -149,7 +150,7 @@ const app = Vue.createApp({
       }
     },
     async toggleRequest(item) {
-      let res = await fetch(`/toggleitem?id=${item.id}`, {headers: {'X-WS-Client-ID': clientID}})
+      let res = await fetch(`/toggleitem?id=${item.id}`, {headers: {'X-WS-Client-ID': clientID, 'X-Auth-Token': this.token}})
       let data = await res.json()
       item.is_checked = data.is_checked
       if (item.is_checked) {
@@ -162,7 +163,7 @@ const app = Vue.createApp({
     async removeItem() {
       let res = await fetch(
         `/deleteitem?id=${this.editItemId}`, 
-        {headers: {'X-WS-Client-ID': clientID}}
+        {headers: {'X-WS-Client-ID': clientID, 'X-Auth-Token': this.token}}
         )
       if (!res.ok) {
         this.editItemError = `${res.status} ${res.statusText}`
@@ -175,7 +176,7 @@ const app = Vue.createApp({
     async addItem() {
       let res = await fetch(
         `/additem?name=${this.editItemName}&category=${this.editItemCategory}`, 
-        {headers: {'X-WS-Client-ID': clientID}}
+        {headers: {'X-WS-Client-ID': clientID, 'X-Auth-Token': this.token}}
         )
       if (!res.ok) {
         this.editItemError = `${res.status} ${res.statusText}`
@@ -188,7 +189,7 @@ const app = Vue.createApp({
     async updateItem() {
       let res = await fetch(
         `/edititem?id=${this.editItemId}&name=${this.editItemName}&category=${this.editItemCategory}`, 
-        {headers: {'X-WS-Client-ID': clientID}}
+        {headers: {'X-WS-Client-ID': clientID, 'X-Auth-Token': this.token}}
         )
       if (!res.ok) {
         this.editItemError = `${res.status} ${res.statusText}`
@@ -201,7 +202,19 @@ const app = Vue.createApp({
     }
   },
   async mounted() {
-    let res = await fetch('/items', {headers: {'X-WS-Client-ID': clientID}})
+    let urlSearchParams = new URLSearchParams(window.location.search)
+    let params = Object.fromEntries(urlSearchParams.entries())
+    if (params.token) {
+      localStorage.setItem("token", params.token)
+      window.location.replace(location.protocol + '//' + location.host)
+    }
+    this.token = localStorage.getItem("token")
+    if (!this.token) {
+      this.error = "no token provided"
+      return
+    }
+
+    let res = await fetch('/items', {headers: {'X-WS-Client-ID': clientID, 'X-Auth-Token': this.token}})
     let rawItems = await res.json()
     for (let item of rawItems) {
       let state = "open";
