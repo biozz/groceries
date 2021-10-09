@@ -69,8 +69,11 @@ func main() {
 		bind = os.Args[1]
 		kvhost = os.Args[2]
 		usersFile, _ := ioutil.ReadFile(os.Args[3])
+		// otherwise unmarshalled values are added to the previously defined map
+		users = map[string]User{}
 		json.Unmarshal(usersFile, &users)
 	}
+	log.Println(users)
 	kvconn, err := redis.DialURL(fmt.Sprintf("redis://%s", kvhost))
 	if err != nil {
 		log.Fatalf("Unable to connect to kv store: %v", err)
