@@ -71,7 +71,10 @@ func main() {
 		usersFile, _ := ioutil.ReadFile(os.Args[3])
 		// otherwise unmarshalled values are added to the previously defined map
 		users = map[string]User{}
-		json.Unmarshal(usersFile, &users)
+		err := json.Unmarshal(usersFile, &users)
+		if err != nil {
+			log.Fatalf("Unable to unmarshal users file: %v", err)
+		}
 	}
 	log.Println(users)
 	kvconn, err := redis.DialURL(fmt.Sprintf("redis://%s", kvhost))
