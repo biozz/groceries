@@ -157,6 +157,10 @@ func (h *Handlers) AddItemHandler(w http.ResponseWriter, r *http.Request) {
 	maxID := 1
 	for _, itemKey := range itemKeys {
 		itemKeyParts := strings.Split(string(itemKey), ":")
+		if len(itemKeyParts) < 2 {
+			log.Printf("Bad key %s", string(itemKey))
+			continue
+		}
 		id, _ := strconv.Atoi(itemKeyParts[1])
 		if id > maxID {
 			maxID = id
