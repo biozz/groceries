@@ -21,3 +21,7 @@
 [v-cloak] {
 	display: none;
 }
+
+.search-box {
+	-webkit-tap-highlight-color: transparent;
+}
