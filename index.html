@@ -18,8 +18,59 @@
                 <div class="row">
                   <div class="col-sm-10 col-lg-6 offset-lg-3 offset-sm-1 gy-1">
                     <div class="input-group">
+                      <button 
+                        class="btn btn-success" 
+                        type="button" 
+                        id="button-addon1"
+                        @click="showAddModal"
+                      >+</button>
+                      <div class="input-group-text">
+                        <input 
+                          class="form-check-input mt-0" 
+                          type="checkbox" 
+                          id="isGrouped"
+                          v-model="isGrouped"
+                        >
+                      </div>
+                      <div class="input-group-text">
+                        <input 
+                          class="form-check-input mt-0" 
+                          type="checkbox" 
+                          id="hideCompleted"
+                          v-model="hideCompleted"
+                          @change="toggleHideEmptyCategories"
+                        >
+                      </div>
                       <input type="text" class="form-control form-control-sm search-box" v-model="searchText" />
-                      <button class="btn btn-outline-secondary bg-white" @click="clearSearch">X</button>
+                      <button class="btn btn-secondary" @click="clearSearch">X</button>
+                    </div>
+                    <div class="card mt-3 text-dark bg-light" v-if="isModalShown">
+                      <div class="card-body">
+                        <div class="input-group">
+                          <div class="mb-3">
+                            <input type="text" v-model="editItemName" class="form-control" placeholder="Название">
+                          </div>
+                          <div class="mb-3">
+                            <input type="text" v-model="editItemCategory" @input="suggestCategories" class="form-control" placeholder="Категория">
+                            <ul v-if="hasSuggestions" class="list-group mt-2">
+                              <li
+                              @click="setCategory(category)"
+                              v-for="category in suggestedCategories"
+                              class="list-group-item list-group-flush list-group-item-light text-small pointer"
+                              >{{category}}</li>
+                            </ul>
+                          </div>
+                          <div v-if="isEditItemModeUpdate">
+                            <button @click="updateItem" class="btn btn-primary">Сохранить</button>&nbsp
+                            <button @click="removeItem" class="btn btn-danger">Удалить</button>&nbsp
+                          </div>
+                          <div v-else>
+                            <button  @click="addItem" class="btn btn-primary">Добавить</button>&nbsp
+                          </div>
+                          <button @click="closeModal" class="btn btn-outline-secondary text-end">Закрыть</button>
+                          <span v-if="editItemError">({editItemError})</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -33,8 +84,15 @@
               <p v-else-if="allCompleted && hideCompleted" class="text-center text-muted">Пусто! <u @click="showCompleted" class="pointer">Показать выполненные?</u></p>
               <div v-else v-for="category in filteredCategories">
                 <p v-if="isGrouped" class="h6 my-1">{{ category }}</p>
-                <ul class="list-group shadow-sm">
-                  <li v-for="item in itemsByCategory(category)" class="list-group-item list-group-item-action">
+                <!-- v-for="is_checked in [false, true]" -->
+                <ul 
+                  class="list-group shadow-sm mt-1" 
+                >
+                  <li 
+                    v-for="item in itemsByCategory(category)"
+                    class="list-group-item list-group-item-action"
+                    v-bind:class="{'list-group-item-light': item.is_checked}"
+                  >
                     <input
                     class="form-check-input float-start me-1 h5"
                     type="checkbox"
@@ -48,73 +106,6 @@
                       </div>
                     </li>
                   </ul>
-                </div>
-              </div>
-
-              <div v-if="isModalShown" class="modal show shadow-sm groceries-modal" @click="modalBackdrop">
-                <div class="modal-dialog">
-                  <div class="modal-content">
-                    <div class="modal-header">
-                      <h5 class="modal-title">{{ modalTitle }}</h5>
-                      <button type="button" class="btn-close" @click="closeModal" />
-                    </div>
-                    <div class="modal-body">
-                      <div v-if="isSettingsModal">
-                        <ul class="list pl0 list-unstyled">
-                          <li class="mb3 clearfix">
-                            <input
-                            class="form-check-input float-start me-1 h5"
-                            type="checkbox"
-                            id="isGrouped"
-                            v-model="isGrouped"
-                            />
-                            <label for="isGrouped" class="offset-label">Сгруппировать по категориям</label>
-                          </li>
-                          <li class="mb3 clearfix">
-                            <input
-                            class="form-check-input float-start me-1 h5"
-                            type="checkbox"
-                            id="hideCompleted"
-                            v-model="hideCompleted"
-                            @change="toggleHideEmptyCategories"
-                            />
-                            <label for="hideCompleted" class="offset-label">Скрыть выполненные</label>
-                          </li>
-                        </ul>
-                      </div>
-                      <div v-else>
-                        <div class="mb-3">
-                          <input type="text" v-model="editItemName" class="form-control" placeholder="Название">
-                        </div>
-                        <div class="mb-3">
-                          <input type="text" v-model="editItemCategory" @input="suggestCategories" class="form-control" placeholder="Категория">
-                          <ul v-if="hasSuggestions" class="list-group mt-2">
-                            <li
-                            @click="setCategory(category)"
-                            v-for="category in suggestedCategories"
-                            class="list-group-item list-group-flush list-group-item-light text-small pointer"
-                            >{{category}}</li>
-                          </ul>
-                        </div>
-                        <div v-if="isEditItemModeUpdate">
-                          <button @click="updateItem" class="btn btn-primary">Сохранить</button>&nbsp
-                          <button @click="removeItem" class="btn btn-danger">Удалить</button>
-                        </div>
-                        <div v-else>
-                          <button  @click="addItem" class="btn btn-primary">Добавить</button>
-                        </div>
-                        <span v-if="editItemError">({editItemError})</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div v-else>
-                <!-- special spacer so that buttons don't overlap the list -->
-                <div style="width: 100%; height: 80px" />
-                <div class="fixed-bottom text-center mb-4" style="z-index: 10000">
-                  <button class="btn btn-secondary" @click="showSettingsModal">Настройки</button>&nbsp
-                  <button class="btn btn-success" @click="showAddModal">Добавить</button>
                 </div>
               </div>
             </div>

@@ -43,6 +43,7 @@ const app = Vue.createApp({
       let items = this.items.slice()
       if (this.searchText.length > 0) {
         items = items.filter(item => item.name.toLowerCase().includes(this.searchText.toLowerCase()))
+        this.hideCompleted = false
       }
       if (this.hideCompleted) {
         return items.filter(i => i.state === "open")
@@ -73,6 +74,7 @@ const app = Vue.createApp({
   methods: {
     clearSearch() {
       this.searchText = ""
+      this.hideCompleted = true
     },
     showCompleted() {
       this.hideCompleted = false
@@ -104,17 +106,14 @@ const app = Vue.createApp({
       this.editItemId = null
       this.editItemName = ""
       this.editItemCategory = ""
+      this.suggestedCategories = []
     },
-    modalBackdrop(e) {
-      if (!e.target.classList.contains('modal')) {
-        return
-      }
-      this.closeModal()
-    },
-    itemsByCategory(category) {
+    itemsByCategory(category, is_checked) {
       if (!this.isGrouped) {
+        // return this.filteredItems.filter(i => i.is_checked === is_checked)
         return this.filteredItems
       }
+      // return this.filteredItems.filter(i => i.category === category).filter(i => i.is_checked === is_checked)
       return this.filteredItems.filter(i => i.category === category)
     },
     suggestCategories() {
