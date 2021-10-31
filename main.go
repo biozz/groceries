@@ -46,8 +46,6 @@ var (
 	//go:embed index.html
 	indexHTML string
 
-	kvconn redis.Conn
-
 	newline  = []byte{'\n'}
 	space    = []byte{' '}
 	upgrader = websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024}
@@ -77,14 +75,11 @@ func main() {
 		}
 	}
 	log.Println(users)
-	kvconn, err := redis.DialURL(fmt.Sprintf("redis://%s", kvhost))
-	if err != nil {
-		log.Fatalf("Unable to connect to kv store: %v", err)
-	}
-	defer kvconn.Close()
+	pool := newRedisPool(kvhost)
+	defer pool.Close()
 	hub := newHub()
 	go hub.run()
-	h := Handlers{kv: kvconn, hub: hub}
+	h := Handlers{pool: pool, hub: hub}
 
 	r := mux.NewRouter()
 	r.PathPrefix("/static/").Handler(http.FileServer(http.FS(static)))
@@ -101,13 +96,25 @@ func main() {
 	log.Fatal(http.ListenAndServe(bind, handlers.LoggingHandler(os.Stdout, r)))
 }
 
+func newRedisPool(kvhost string) *redis.Pool {
+	return &redis.Pool{
+		Dial: func() (redis.Conn, error) {
+			c, err := redis.DialURL(fmt.Sprintf("redis://%s", kvhost))
+			if err != nil {
+				panic(err.Error())
+			}
+			return c, err
+		},
+	}
+}
+
 func IndexHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(indexHTML))
 }
 
 type Handlers struct {
-	kv  redis.Conn
-	hub *Hub
+	pool *redis.Pool
+	hub  *Hub
 }
 
 type Item struct {
@@ -125,14 +132,16 @@ func (h *Handlers) ItemsHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	itemKeys, err := redis.ByteSlices(h.kv.Do("KEYS", "item:*"))
+	conn := h.pool.Get()
+	defer conn.Close()
+	itemKeys, err := redis.ByteSlices(conn.Do("KEYS", "item:*"))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 	items := make([]Item, 0)
 	for _, itemKey := range itemKeys {
 		var item Item
-		result, _ := redis.Bytes(h.kv.Do("GET", itemKey))
+		result, _ := redis.Bytes(conn.Do("GET", itemKey))
 		err = json.Unmarshal(result, &item)
 		if err != nil {
 			continue
@@ -150,7 +159,9 @@ func (h *Handlers) AddItemHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	itemKeys, err := redis.ByteSlices(h.kv.Do("KEYS", "item:*"))
+	conn := h.pool.Get()
+	defer conn.Close()
+	itemKeys, err := redis.ByteSlices(conn.Do("KEYS", "item:*"))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
@@ -177,7 +188,7 @@ func (h *Handlers) AddItemHandler(w http.ResponseWriter, r *http.Request) {
 		IsChecked: false,
 	}
 	data, _ := json.Marshal(item)
-	h.kv.Do("SET", fmt.Sprintf("item:%d", newID), data)
+	conn.Do("SET", fmt.Sprintf("item:%d", newID), data)
 	w.Write(data)
 
 	msg, _ := json.Marshal(Message{ClientID: r.Header.Get(wsClientIdHeader), Type: "add", Data: item})
@@ -196,15 +207,17 @@ func (h *Handlers) DeleteItemHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	conn := h.pool.Get()
+	defer conn.Close()
 	key := fmt.Sprintf("item:%s", itemID)
-	itemRaw, _ := redis.Bytes(h.kv.Do("GET", key))
+	itemRaw, _ := redis.Bytes(conn.Do("GET", key))
 	if len(itemRaw) == 0 {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	var item Item
 	_ = json.Unmarshal(itemRaw, &item)
-	_, err := h.kv.Do("DEL", fmt.Sprintf("item:%s", itemID))
+	_, err := conn.Do("DEL", fmt.Sprintf("item:%s", itemID))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -227,8 +240,11 @@ func (h *Handlers) EditItemHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	name := r.URL.Query().Get("name")
 	category := r.URL.Query().Get("category")
+
+	conn := h.pool.Get()
+	defer conn.Close()
 	key := fmt.Sprintf("item:%s", itemID)
-	itemRaw, _ := redis.Bytes(h.kv.Do("GET", key))
+	itemRaw, _ := redis.Bytes(conn.Do("GET", key))
 	if len(itemRaw) == 0 {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -238,7 +254,7 @@ func (h *Handlers) EditItemHandler(w http.ResponseWriter, r *http.Request) {
 	item.Name = name
 	item.Category = category
 	updatedItem, _ := json.Marshal(item)
-	h.kv.Do("SET", key, updatedItem)
+	conn.Do("SET", key, updatedItem)
 
 	msg, _ := json.Marshal(Message{ClientID: r.Header.Get(wsClientIdHeader), Type: "edit", Data: item})
 	h.hub.broadcast <- msg
@@ -257,8 +273,10 @@ func (h *Handlers) ToggleItemHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	conn := h.pool.Get()
+	defer conn.Close()
 	key := fmt.Sprintf("item:%s", itemID)
-	itemRaw, _ := redis.Bytes(h.kv.Do("GET", key))
+	itemRaw, _ := redis.Bytes(conn.Do("GET", key))
 	if len(itemRaw) == 0 {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -267,7 +285,7 @@ func (h *Handlers) ToggleItemHandler(w http.ResponseWriter, r *http.Request) {
 	_ = json.Unmarshal(itemRaw, &item)
 	item.IsChecked = !item.IsChecked
 	updatedItem, _ := json.Marshal(item)
-	h.kv.Do("SET", key, updatedItem)
+	conn.Do("SET", key, updatedItem)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(updatedItem)
 
