@@ -20,13 +20,13 @@ Main features include:
 Binary:
 
 ```bash
-./groceries :8080 localhost:6379
+./groceries -bind=:8080 -kvhost=localhost:6379
 ```
 
 Docker (after starting redis):
 
 ```bash
-docker run -d groceries:latest :8080 redis:6379
+docker run -d groceries:latest -bind=:8080 -kvhost=redis:6379
 ```
 
 ## License

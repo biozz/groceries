@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -40,6 +41,10 @@ const (
 )
 
 var (
+	bind          = flag.String("bind", ":8080", "listen address")
+	kvhost        = flag.String("kvhost", "localhost:6379", "a redis compatible server address")
+	usersFilePath = flag.String("users", "", "a json file with users and keys")
+
 	//go:embed static
 	static embed.FS
 
@@ -58,15 +63,13 @@ type User struct {
 }
 
 func main() {
-	kvhost := "localhost:6379"
-	bind := ":8080"
+	flag.Parse()
+
 	users = map[string]User{
 		"admin": {Username: "admin"},
 	}
-	if len(os.Args) > 3 {
-		bind = os.Args[1]
-		kvhost = os.Args[2]
-		usersFile, _ := ioutil.ReadFile(os.Args[3])
+	if *usersFilePath != "" {
+		usersFile, _ := ioutil.ReadFile(*usersFilePath)
 		// otherwise unmarshalled values are added to the previously defined map
 		users = map[string]User{}
 		err := json.Unmarshal(usersFile, &users)
@@ -75,7 +78,7 @@ func main() {
 		}
 	}
 	log.Println(users)
-	pool := newRedisPool(kvhost)
+	pool := newRedisPool(*kvhost)
 	defer pool.Close()
 	hub := newHub()
 	go hub.run()
@@ -93,7 +96,7 @@ func main() {
 		serveWS(hub, rw, r)
 	})
 	http.Handle("/", r)
-	log.Fatal(http.ListenAndServe(bind, handlers.LoggingHandler(os.Stdout, r)))
+	log.Fatal(http.ListenAndServe(*bind, handlers.LoggingHandler(os.Stdout, r)))
 }
 
 func newRedisPool(kvhost string) *redis.Pool {
