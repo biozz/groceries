@@ -1,0 +1,9 @@
+{ 
+  "name": "Groceries", 
+  "short_name": "Groceries", 
+  "start_url": "https://groceries.biozz.dev", 
+  "display": "standalone", 
+  "icons": [
+  	{"src": "images/logo.png", "sizes": "384x384", "type": "image/png"}
+  ]
+}

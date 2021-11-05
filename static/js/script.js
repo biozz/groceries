@@ -9,7 +9,6 @@ let socket = new WebSocket(`${scheme}://${loc.host}/ws?client_id=${clientID}`)
 const app = Vue.createApp({
   data() {
     return {
-      error: null,
       loading: true,
       isModalShown: false,
       modalTitle: "",
@@ -23,7 +22,9 @@ const app = Vue.createApp({
       editItemName: "",
       editItemCategory: "",
       editItemError: "",
-      suggestedCategories: []
+      suggestedCategories: [],
+      token: "",
+      rawToken: "",
     }
   },
   computed: {
@@ -72,6 +73,10 @@ const app = Vue.createApp({
     }
   },
   methods: {
+    saveToken() {
+      localStorage.setItem("token", this.rawToken)
+      window.location.reload()
+    },
     clearSearch() {
       this.searchText = ""
       this.hideCompleted = true
@@ -209,7 +214,6 @@ const app = Vue.createApp({
     }
     this.token = localStorage.getItem("token")
     if (!this.token) {
-      this.error = "no token provided"
       return
     }
 

@@ -3,9 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <link href="/static/bootstrap.min.css" rel="stylesheet">
-    <link href="/static/style.css" rel="stylesheet">
-    <link rel="icon" href="/static/favicon.ico">
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+    <link rel="icon" href="favicon.ico">
+    <link rel="manifest" href="manifest.json">
     <title>Groceries</title>
   </head>
   <body>
@@ -78,7 +79,10 @@
             </div>
 
             <div class="mt-4">
-              <p v-if="error">{{ error }}</p>
+              <div v-if="!token">
+                <input class="fom-text-input my-2" type="text" v-model="rawToken"><br>
+                <button class="btn btn-primary" @click="saveToken">Сохранить</button>
+              </div>
               <p v-else-if="loading" class="text-center text-muted">Загрузка...</p>
               <p v-else-if="searchIsEmpty" class="text-center text-muted">Пусто! Попробуй <u @click="clearSearch" class="pointer">очистить поиск</u> или <u @click="showAddModal" class="pointer">добавить задачу</u>.</p>
               <p v-else-if="allCompleted && hideCompleted" class="text-center text-muted">Пусто! <u @click="showCompleted" class="pointer">Показать выполненные?</u></p>
@@ -113,7 +117,7 @@
         </div>
       </div>
     </div>
-    <script src="static/vue.global.prod.js"></script>
-    <script src="static/script.js"></script>
+    <script src="js/vue.global.prod.js"></script>
+    <script src="js/script.js"></script>
   </body>
   </html>

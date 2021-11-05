@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -15,8 +16,6 @@ import (
 	"time"
 
 	"github.com/gomodule/redigo/redis"
-	"github.com/gorilla/handlers"
-	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 )
 
@@ -44,12 +43,10 @@ var (
 	bind          = flag.String("bind", ":8080", "listen address")
 	kvhost        = flag.String("kvhost", "localhost:6379", "a redis compatible server address")
 	usersFilePath = flag.String("users", "", "a json file with users and keys")
+	env           = flag.String("env", "", "environment to run in (dev is good for frontend)")
 
 	//go:embed static
 	static embed.FS
-
-	//go:embed index.html
-	indexHTML string
 
 	newline  = []byte{'\n'}
 	space    = []byte{' '}
@@ -84,19 +81,43 @@ func main() {
 	go hub.run()
 	h := Handlers{pool: pool, hub: hub}
 
-	r := mux.NewRouter()
-	r.PathPrefix("/static/").Handler(http.FileServer(http.FS(static)))
-	r.HandleFunc("/", IndexHandler)
-	r.HandleFunc("/items", h.ItemsHandler)
-	r.HandleFunc("/additem", h.AddItemHandler)
-	r.HandleFunc("/deleteitem", h.DeleteItemHandler)
-	r.HandleFunc("/edititem", h.EditItemHandler)
-	r.HandleFunc("/toggleitem", h.ToggleItemHandler)
-	r.HandleFunc("/ws", func(rw http.ResponseWriter, r *http.Request) {
+	fileServer := http.FileServer(http.FS(static))
+	if *env == "dev" {
+		fileServer = http.FileServer(http.Dir("static"))
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/items", h.ItemsHandler)
+	mux.HandleFunc("/additem", h.AddItemHandler)
+	mux.HandleFunc("/deleteitem", h.DeleteItemHandler)
+	mux.HandleFunc("/edititem", h.EditItemHandler)
+	mux.HandleFunc("/toggleitem", h.ToggleItemHandler)
+	mux.HandleFunc("/ws", func(rw http.ResponseWriter, r *http.Request) {
 		serveWS(hub, rw, r)
 	})
-	http.Handle("/", r)
-	log.Fatal(http.ListenAndServe(*bind, handlers.LoggingHandler(os.Stdout, r)))
+	mux.Handle("/", fileServer)
+	log.Fatal(http.ListenAndServe(*bind, addLogging(os.Stdout, mux)))
+}
+
+type loggingHandler struct {
+	writer  io.Writer
+	handler http.Handler
+}
+
+func (h loggingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	t := time.Now()
+	url := *req.URL
+
+	h.handler.ServeHTTP(w, req)
+	if req.MultipartForm != nil {
+		req.MultipartForm.RemoveAll()
+	}
+	dur := time.Now().Sub(t)
+	log.Printf("%s %s %s", dur.String(), req.Method, &url)
+}
+
+func addLogging(out io.Writer, h http.Handler) http.Handler {
+	return loggingHandler{out, h}
 }
 
 func newRedisPool(kvhost string) *redis.Pool {
@@ -109,10 +130,6 @@ func newRedisPool(kvhost string) *redis.Pool {
 			return c, err
 		},
 	}
-}
-
-func IndexHandler(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte(indexHTML))
 }
 
 type Handlers struct {
