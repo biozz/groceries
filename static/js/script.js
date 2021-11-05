@@ -114,12 +114,19 @@ const app = Vue.createApp({
       this.suggestedCategories = []
     },
     itemsByCategory(category, is_checked) {
-      if (!this.isGrouped) {
-        // return this.filteredItems.filter(i => i.is_checked === is_checked)
-        return this.filteredItems
+      let filterCompleted = function(i) {
+        if (is_checked && i.state === "completed") {
+            return true
+        }
+        if (!is_checked && i.state !== "completed") {
+          return true
+        }
+        return false
       }
-      // return this.filteredItems.filter(i => i.category === category).filter(i => i.is_checked === is_checked)
-      return this.filteredItems.filter(i => i.category === category)
+      if (!this.isGrouped) {
+        return this.filteredItems.filter(filterCompleted)
+      }
+      return this.filteredItems.filter(i => i.category === category).filter(filterCompleted)
     },
     suggestCategories() {
       let val = this.editItemCategory

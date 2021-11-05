@@ -88,12 +88,12 @@
               <p v-else-if="allCompleted && hideCompleted" class="text-center text-muted">Пусто! <u @click="showCompleted" class="pointer">Показать выполненные?</u></p>
               <div v-else v-for="category in filteredCategories">
                 <p v-if="isGrouped" class="h6 my-1">{{ category }}</p>
-                <!-- v-for="is_checked in [false, true]" -->
                 <ul 
                   class="list-group shadow-sm mt-1" 
+                  v-for="is_checked in [false, true]"
                 >
                   <li 
-                    v-for="item in itemsByCategory(category)"
+                    v-for="item in itemsByCategory(category, is_checked)"
                     class="list-group-item list-group-item-action"
                     v-bind:class="{'list-group-item-light': item.is_checked}"
                   >
