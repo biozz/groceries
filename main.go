@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -81,7 +82,11 @@ func main() {
 	go hub.run()
 	h := Handlers{pool: pool, hub: hub}
 
-	fileServer := http.FileServer(http.FS(static))
+	fsys, err := fs.Sub(static, "static")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fileServer := http.FileServer(http.FS(fsys))
 	if *env == "dev" {
 		fileServer = http.FileServer(http.Dir("static"))
 	}
