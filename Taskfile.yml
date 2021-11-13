@@ -5,12 +5,12 @@ version: '3'
 tasks:
   build:
     cmds:
-      - go build -o bin/groceries main.go
+      - go build -o bin/groceries .
   run:
     cmds:
       - ./groceries
     deps: [build]
     sources:
       - static/*
-      - main.go
+      - *.go
       - index.html
