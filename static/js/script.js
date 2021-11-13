@@ -18,13 +18,14 @@ const app = Vue.createApp({
       isGrouped: true,
       items: [],
       editItemMode: "add",
-      editItemId: null,
+      editItemUid: null,
       editItemName: "",
       editItemCategory: "",
       editItemError: "",
       suggestedCategories: [],
       token: "",
       rawToken: "",
+      namespace: "",
     }
   },
   computed: {
@@ -62,6 +63,9 @@ const app = Vue.createApp({
     },
     isEditItemModeUpdate() {
       return this.editItemMode === "update"
+    },
+    isGlobalNamespace() {
+      return this.namespace === "global"
     }
   },
   watch: {
@@ -76,6 +80,9 @@ const app = Vue.createApp({
     saveToken() {
       localStorage.setItem("token", this.rawToken)
       window.location.reload()
+    },
+    getHeaders() {
+      return {'X-WS-Client-ID': clientID, 'X-Auth-Token': this.token, 'X-Namespace': this.namespace}
     },
     clearSearch() {
       this.searchText = ""
@@ -100,7 +107,7 @@ const app = Vue.createApp({
       this.editItemName = item.name
       this.editItemCategory = item.category
       this.editItemMode = "update"
-      this.editItemId = item.id
+      this.editItemUid = item.uid
     },
     closeModal() {
       this.isModalShown = false
@@ -108,7 +115,7 @@ const app = Vue.createApp({
       if (this.editItemMode === "edit") {
         this.editItemMode = "add"
       }
-      this.editItemId = null
+      this.editItemUid = null
       this.editItemName = ""
       this.editItemCategory = ""
       this.suggestedCategories = []
@@ -161,7 +168,7 @@ const app = Vue.createApp({
       }
     },
     async toggleRequest(item) {
-      let res = await fetch(`/toggleitem?id=${item.id}`, {headers: {'X-WS-Client-ID': clientID, 'X-Auth-Token': this.token}})
+      let res = await fetch(`/items/toggle?uid=${item.uid}`, {headers: this.getHeaders()})
       let data = await res.json()
       item.is_checked = data.is_checked
       if (item.is_checked) {
@@ -172,22 +179,19 @@ const app = Vue.createApp({
       item.is_prechecked = false
     },
     async removeItem() {
-      let res = await fetch(
-        `/deleteitem?id=${this.editItemId}`, 
-        {headers: {'X-WS-Client-ID': clientID, 'X-Auth-Token': this.token}}
-        )
+      let res = await fetch(`/items/delete?uid=${this.editItemUid}`, {headers: this.getHeaders()})
       if (!res.ok) {
         this.editItemError = `${res.status} ${res.statusText}`
         return
       }
-      let idx = this.items.findIndex(i => i.id === this.editItemId)
+      let idx = this.items.findIndex(i => i.uid === this.editItemUid)
       this.items.splice(idx, 1)
       this.closeModal()
     },
     async addItem() {
       let res = await fetch(
-        `/additem?name=${this.editItemName}&category=${this.editItemCategory}`, 
-        {headers: {'X-WS-Client-ID': clientID, 'X-Auth-Token': this.token}}
+        `/items/add?name=${this.editItemName}&category=${this.editItemCategory}`, 
+        {headers: this.getHeaders()}
         )
       if (!res.ok) {
         this.editItemError = `${res.status} ${res.statusText}`
@@ -199,14 +203,14 @@ const app = Vue.createApp({
     },
     async updateItem() {
       let res = await fetch(
-        `/edititem?id=${this.editItemId}&name=${this.editItemName}&category=${this.editItemCategory}`, 
-        {headers: {'X-WS-Client-ID': clientID, 'X-Auth-Token': this.token}}
+        `/items/edit?uid=${this.editItemUid}&name=${this.editItemName}&category=${this.editItemCategory}`, 
+        {headers: this.getHeaders()}
         )
       if (!res.ok) {
         this.editItemError = `${res.status} ${res.statusText}`
         return
       }
-      let idx = this.items.findIndex(i => i.id === this.editItemId)
+      let idx = this.items.findIndex(i => i.uid === this.editItemUid)
       this.items[idx].name = this.editItemName
       this.items[idx].category = this.editItemCategory
       this.closeModal()
@@ -215,16 +219,37 @@ const app = Vue.createApp({
   async mounted() {
     let urlSearchParams = new URLSearchParams(window.location.search)
     let params = Object.fromEntries(urlSearchParams.entries())
+
+    let clearUrlAfterSetup = false
+
     if (params.token) {
       localStorage.setItem("token", params.token)
-      window.location.replace(location.protocol + '//' + location.host)
+      clearUrlAfterSetup = true
     }
     this.token = localStorage.getItem("token")
     if (!this.token) {
       return
     }
+    let isNamespaceChanged = false
+    let namespace = localStorage.getItem("namespace")
+    if (params.namespace) {
+      namespace = params.namespace
+      clearUrlAfterSetup = true
+      isNamespaceChanged = true
+    } else if (!namespace) {
+      namespace = "global"
+      isNamespaceChanged = true
+    }
+    if (isNamespaceChanged) {
+      localStorage.setItem("namespace", namespace)
+    }
+    this.namespace = localStorage.getItem("namespace")
 
-    let res = await fetch('/items', {headers: {'X-WS-Client-ID': clientID, 'X-Auth-Token': this.token}})
+    if (clearUrlAfterSetup) {
+      window.location.replace(location.protocol + '//' + location.host)
+    }
+
+    let res = await fetch('items/', {headers: this.getHeaders()})
     let rawItems = await res.json()
     for (let item of rawItems) {
       let state = "open";
@@ -251,7 +276,7 @@ const app = Vue.createApp({
       let idx = null
       switch (event.type) {
         case "toggle":
-        idx = this.items.findIndex(i => i.id === event.data.id)
+        idx = this.items.findIndex(i => i.uid === event.data.id)
         let state = "open";
         if (event.data.is_checked) {
           state = "completed";
@@ -260,12 +285,12 @@ const app = Vue.createApp({
         this.items[idx].state = state
         break;
         case "edit":
-        idx = this.items.findIndex(i => i.id === event.data.id)
+        idx = this.items.findIndex(i => i.uid === event.data.id)
         this.items[idx].name = event.data.name
         this.items[idx].category = event.data.category
         break;
         case "delete":
-        idx = this.items.findIndex(i => i.id === event.data.id)
+        idx = this.items.findIndex(i => i.uid === event.data.id)
         this.items.splice(idx, 1)
         break;
         case "add":

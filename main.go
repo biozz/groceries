@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"encoding/json"
 	"flag"
@@ -12,11 +13,10 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -38,6 +38,15 @@ const (
 
 	// Auth Token header for identifying user
 	authTokenHeader = "x-auth-token"
+
+	// Namespace is used for handling multiple todo lists
+	namespaceHeader = "x-namespace"
+
+	// Used to separate different task lists
+	globalNamespace = "global"
+
+	// Use to get request context
+	groceriesRequestContextKey = "groceries"
 )
 
 var (
@@ -55,10 +64,6 @@ var (
 
 	users map[string]User
 )
-
-type User struct {
-	Username string `json:"username"`
-}
 
 func main() {
 	flag.Parse()
@@ -91,12 +96,15 @@ func main() {
 		fileServer = http.FileServer(http.Dir("static"))
 	}
 
+	itemsMux := http.NewServeMux()
+	itemsMux.HandleFunc("/add", h.AddItemHandler)
+	itemsMux.HandleFunc("/delete", h.DeleteItemHandler)
+	itemsMux.HandleFunc("/edit", h.EditItemHandler)
+	itemsMux.HandleFunc("/toggle", h.ToggleItemHandler)
+	itemsMux.HandleFunc("/", h.ItemsHandler)
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("/items", h.ItemsHandler)
-	mux.HandleFunc("/additem", h.AddItemHandler)
-	mux.HandleFunc("/deleteitem", h.DeleteItemHandler)
-	mux.HandleFunc("/edititem", h.EditItemHandler)
-	mux.HandleFunc("/toggleitem", h.ToggleItemHandler)
+	mux.Handle("/items/", http.StripPrefix("/items", itemsMiddleware(itemsMux)))
 	mux.HandleFunc("/ws", func(rw http.ResponseWriter, r *http.Request) {
 		serveWS(hub, rw, r)
 	})
@@ -104,21 +112,45 @@ func main() {
 	log.Fatal(http.ListenAndServe(*bind, addLogging(os.Stdout, mux)))
 }
 
+func itemsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		rc := getRequestContext(req)
+		if ok := rc.isAuthorized(); !ok {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		ctx := req.Context()
+		ctx = context.WithValue(ctx, "groceries", rc)
+		groceriesRequest := req.Clone(ctx)
+		next.ServeHTTP(w, groceriesRequest)
+	})
+}
+
 type loggingHandler struct {
 	writer  io.Writer
 	handler http.Handler
 }
 
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (r *statusRecorder) WriteHeader(status int) {
+	r.status = status
+	r.ResponseWriter.WriteHeader(status)
+}
+
 func (h loggingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	t := time.Now()
 	url := *req.URL
-
-	h.handler.ServeHTTP(w, req)
+	recorder := &statusRecorder{w, 200}
+	h.handler.ServeHTTP(recorder, req)
 	if req.MultipartForm != nil {
 		req.MultipartForm.RemoveAll()
 	}
 	dur := time.Now().Sub(t)
-	log.Printf("%s %s %s", dur.String(), req.Method, &url)
+	log.Printf("%s %s %d %s", dur.String(), req.Method, recorder.status, &url)
 }
 
 func addLogging(out io.Writer, h http.Handler) http.Handler {
@@ -137,29 +169,79 @@ func newRedisPool(kvhost string) *redis.Pool {
 	}
 }
 
+type User struct {
+	Username string `json:"username"`
+}
+
+type RequestContext struct {
+	User      *User
+	Namespace string
+}
+
+func getRequestContext(r *http.Request) *RequestContext {
+	authToken := r.Header.Get(authTokenHeader)
+	user, _ := users[authToken]
+	namespace := r.Header.Get(namespaceHeader)
+	if namespace == "" {
+		namespace = globalNamespace
+	}
+	return &RequestContext{
+		User:      &user,
+		Namespace: namespace,
+	}
+}
+
+func (rc *RequestContext) isAuthorized() bool {
+	if rc.User.Username != "" {
+		return true
+	}
+	return false
+}
+
+// item:global:qwer-asdf-1234asdf - global keys
+// item:user:global:zcxv-asdf-qwer - user specific namespaces
+func (rc *RequestContext) buidlKey(uid string) string {
+	key := "item"
+	if rc.Namespace != globalNamespace {
+		key = fmt.Sprintf("%s:%s", key, rc.User.Username)
+	}
+	key = fmt.Sprintf("%s:%s", key, rc.Namespace)
+	// if rc.Namespace != globalNamespace {
+	// 	key = fmt.Sprintf("%s:", rc.User.Username)
+	// key = fmt.Sprintf("%s:", rc.Namespace)
+	if uid != "" {
+		key = fmt.Sprintf("%s:%s", key, uid)
+	}
+	return key
+}
+
+func (rc *RequestContext) buildKeyPattern() string {
+	// to make sure we are not building pattern with item uid
+	key := rc.buidlKey("")
+	return fmt.Sprintf("%s:*", key)
+}
+
 type Handlers struct {
 	pool *redis.Pool
 	hub  *Hub
 }
 
 type Item struct {
-	ID        int    `json:"id"`
+	UID       string `json:"uid"`
 	Name      string `json:"name"`
 	Category  string `json:"category"`
 	IsChecked bool   `json:"is_checked"`
 }
 
 func (h *Handlers) ItemsHandler(w http.ResponseWriter, r *http.Request) {
-	// TODO: rewrite token getter to middleware
-	authToken := r.Header.Get(authTokenHeader)
-	_, ok := users[authToken]
-	if !ok {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
+
 	conn := h.pool.Get()
 	defer conn.Close()
-	itemKeys, err := redis.ByteSlices(conn.Do("KEYS", "item:*"))
+
+	rc := r.Context().Value(groceriesRequestContextKey).(*RequestContext)
+	keyPattern := rc.buildKeyPattern()
+	log.Println(keyPattern)
+	itemKeys, err := redis.ByteSlices(conn.Do("KEYS", keyPattern))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
@@ -178,42 +260,31 @@ func (h *Handlers) ItemsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) AddItemHandler(w http.ResponseWriter, r *http.Request) {
-	authToken := r.Header.Get(authTokenHeader)
-	_, ok := users[authToken]
-	if !ok {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
 	conn := h.pool.Get()
 	defer conn.Close()
-	itemKeys, err := redis.ByteSlices(conn.Do("KEYS", "item:*"))
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-	}
-	maxID := 1
-	for _, itemKey := range itemKeys {
-		itemKeyParts := strings.Split(string(itemKey), ":")
-		if len(itemKeyParts) < 2 {
-			log.Printf("Bad key %s", string(itemKey))
-			continue
-		}
-		id, _ := strconv.Atoi(itemKeyParts[1])
-		if id > maxID {
-			maxID = id
-		}
-	}
-	newID := maxID + 1
+
+	rc := r.Context().Value(groceriesRequestContextKey).(*RequestContext)
+
+	uid := uuid.NewString()
+
 	name := r.URL.Query().Get("name")
+	if name == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	category := r.URL.Query().Get("category")
 
 	item := Item{
-		ID:        newID,
+		UID:       uid,
 		Name:      name,
 		Category:  category,
 		IsChecked: false,
 	}
 	data, _ := json.Marshal(item)
-	conn.Do("SET", fmt.Sprintf("item:%d", newID), data)
+	key := rc.buidlKey(uid)
+	log.Println(key)
+	conn.Do("SET", key, data)
 	w.Write(data)
 
 	msg, _ := json.Marshal(Message{ClientID: r.Header.Get(wsClientIdHeader), Type: "add", Data: item})
@@ -221,20 +292,16 @@ func (h *Handlers) AddItemHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) DeleteItemHandler(w http.ResponseWriter, r *http.Request) {
-	authToken := r.Header.Get(authTokenHeader)
-	_, ok := users[authToken]
-	if !ok {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-	itemID := r.URL.Query().Get("id")
-	if itemID == "" {
+	rc := r.Context().Value(groceriesRequestContextKey).(*RequestContext)
+	uid := r.URL.Query().Get("uid")
+	if uid == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	conn := h.pool.Get()
 	defer conn.Close()
-	key := fmt.Sprintf("item:%s", itemID)
+	key := rc.buidlKey(uid)
+	log.Println(key)
 	itemRaw, _ := redis.Bytes(conn.Do("GET", key))
 	if len(itemRaw) == 0 {
 		w.WriteHeader(http.StatusNotFound)
@@ -242,7 +309,7 @@ func (h *Handlers) DeleteItemHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	var item Item
 	_ = json.Unmarshal(itemRaw, &item)
-	_, err := conn.Do("DEL", fmt.Sprintf("item:%s", itemID))
+	_, err := conn.Do("DEL", key)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -252,14 +319,9 @@ func (h *Handlers) DeleteItemHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) EditItemHandler(w http.ResponseWriter, r *http.Request) {
-	authToken := r.Header.Get(authTokenHeader)
-	_, ok := users[authToken]
-	if !ok {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-	itemID := r.URL.Query().Get("id")
-	if itemID == "" {
+	rc := r.Context().Value(groceriesRequestContextKey).(*RequestContext)
+	uid := r.URL.Query().Get("uid")
+	if uid == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -268,7 +330,8 @@ func (h *Handlers) EditItemHandler(w http.ResponseWriter, r *http.Request) {
 
 	conn := h.pool.Get()
 	defer conn.Close()
-	key := fmt.Sprintf("item:%s", itemID)
+
+	key := rc.buidlKey(uid)
 	itemRaw, _ := redis.Bytes(conn.Do("GET", key))
 	if len(itemRaw) == 0 {
 		w.WriteHeader(http.StatusNotFound)
@@ -287,20 +350,15 @@ func (h *Handlers) EditItemHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) ToggleItemHandler(w http.ResponseWriter, r *http.Request) {
-	authToken := r.Header.Get(authTokenHeader)
-	_, ok := users[authToken]
-	if !ok {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-	itemID := r.URL.Query().Get("id")
-	if itemID == "" {
+	rc := r.Context().Value(groceriesRequestContextKey).(*RequestContext)
+	uid := r.URL.Query().Get("uid")
+	if uid == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	conn := h.pool.Get()
 	defer conn.Close()
-	key := fmt.Sprintf("item:%s", itemID)
+	key := rc.buidlKey(uid)
 	itemRaw, _ := redis.Bytes(conn.Do("GET", key))
 	if len(itemRaw) == 0 {
 		w.WriteHeader(http.StatusNotFound)

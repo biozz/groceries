@@ -42,6 +42,7 @@
                           @change="toggleHideEmptyCategories"
                         >
                       </div>
+                      <span class="input-group-text" v-if="!isGlobalNamespace">{{ namespace }}</span>
                       <input type="text" class="form-control form-control-sm search-box" v-model="searchText" />
                       <button class="btn btn-secondary" @click="clearSearch">X</button>
                     </div>
@@ -117,7 +118,7 @@
         </div>
       </div>
     </div>
-    <script src="js/vue.global.prod.js"></script>
+    <script src="js/vue.global.js"></script>
     <script src="js/script.js"></script>
   </body>
   </html>
