@@ -12,7 +12,7 @@ type RequestContext struct {
 
 func getRequestContext(r *http.Request) *RequestContext {
 	authToken := r.Header.Get(authTokenHeader)
-	user, _ := users[authToken]
+	user := users[authToken]
 	namespace := r.Header.Get(namespaceHeader)
 	if namespace == "" {
 		namespace = globalNamespace
@@ -24,10 +24,7 @@ func getRequestContext(r *http.Request) *RequestContext {
 }
 
 func (rc *RequestContext) isAuthorized() bool {
-	if rc.User.Username != "" {
-		return true
-	}
-	return false
+	return rc.User.Username != ""
 }
 
 // item:global:qwer-asdf-1234asdf - global keys

@@ -3,122 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <link href="css/bootstrap.min.css" rel="stylesheet">
-    <link href="css/style.css" rel="stylesheet">
+    <link href="out.css" rel="stylesheet">
     <link rel="icon" href="favicon.ico">
     <link rel="manifest" href="manifest.json">
     <title>Groceries</title>
   </head>
   <body>
-    <div id="app" v-cloak>
-      <div class="container">
-        <div class="row">
-          <div class="col-sm-10 col-lg-6 offset-lg-3 offset-sm-1 gy-4">
-            <div class="position-fixed fixed-top bg-white">
-              <div class="container">
-                <div class="row">
-                  <div class="col-sm-10 col-lg-6 offset-lg-3 offset-sm-1 gy-1">
-                    <div class="input-group">
-                      <button 
-                        class="btn btn-success" 
-                        type="button" 
-                        id="button-addon1"
-                        @click="showAddModal"
-                      >+</button>
-                      <div class="input-group-text">
-                        <input 
-                          class="form-check-input mt-0" 
-                          type="checkbox" 
-                          id="isGrouped"
-                          v-model="isGrouped"
-                        >
-                      </div>
-                      <div class="input-group-text">
-                        <input 
-                          class="form-check-input mt-0" 
-                          type="checkbox" 
-                          id="hideCompleted"
-                          v-model="hideCompleted"
-                          @change="toggleHideEmptyCategories"
-                        >
-                      </div>
-                      <span class="input-group-text" v-if="!isGlobalNamespace">{{ namespace }}</span>
-                      <input type="text" class="form-control form-control-sm search-box" v-model="searchText" />
-                      <button class="btn btn-secondary" @click="clearSearch">X</button>
-                    </div>
-                    <div class="card mt-3 text-dark bg-light" v-if="isModalShown">
-                      <div class="card-body">
-                        <div class="input-group">
-                          <div class="mb-3">
-                            <input type="text" v-model="editItemName" class="form-control" placeholder="Название">
-                          </div>
-                          <div class="mb-3">
-                            <input type="text" v-model="editItemCategory" @input="suggestCategories" class="form-control" placeholder="Категория">
-                            <ul v-if="hasSuggestions" class="list-group mt-2">
-                              <li
-                              @click="setCategory(category)"
-                              v-for="category in suggestedCategories"
-                              class="list-group-item list-group-flush list-group-item-light text-small pointer"
-                              >{{category}}</li>
-                            </ul>
-                          </div>
-                          <div v-if="isEditItemModeUpdate">
-                            <button @click="updateItem" class="btn btn-primary">Сохранить</button>&nbsp
-                            <button @click="removeItem" class="btn btn-danger">Удалить</button>&nbsp
-                          </div>
-                          <div v-else>
-                            <button  @click="addItem" class="btn btn-primary">Добавить</button>&nbsp
-                          </div>
-                          <button @click="closeModal" class="btn btn-outline-secondary text-end">Закрыть</button>
-                          <span v-if="editItemError">({editItemError})</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="mt-4">
-              <div v-if="!token">
-                <input class="fom-text-input my-2" type="text" v-model="rawToken"><br>
-                <button class="btn btn-primary" @click="saveToken">Сохранить</button>
-              </div>
-              <p v-else-if="loading" class="text-center text-muted">Загрузка...</p>
-              <p v-else-if="searchIsEmpty" class="text-center text-muted">Пусто! Попробуй <u @click="clearSearch" class="pointer">очистить поиск</u> или <u @click="showAddModal" class="pointer">добавить задачу</u>.</p>
-              <p v-else-if="allCompleted && hideCompleted" class="text-center text-muted">Пусто! <u @click="showCompleted" class="pointer">Показать выполненные?</u></p>
-              <div v-else v-for="category in filteredCategories">
-                <p v-if="isGrouped" class="h6 my-1">{{ category }}</p>
-                <ul 
-                  class="list-group shadow-sm mt-1" 
-                  v-for="is_checked in [false, true]"
-                >
-                  <li 
-                    v-for="item in itemsByCategory(category, is_checked)"
-                    class="list-group-item list-group-item-action"
-                    v-bind:class="{'list-group-item-light': item.is_checked}"
-                  >
-                    <input
-                    class="form-check-input float-start me-1 h5"
-                    type="checkbox"
-                    v-model="item.is_checked"
-                    @change="toggle(item)"
-                    />
-                    <div class="overflow-auto item-name">
-                      <span>{{ item.name }}</span>
-                      <div class="item-actions">
-                        <button @click="showEditModal(item)" class="btn btn-link link-secondary">✏️</button>
-                      </div>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <script src="js/vue.global.js"></script>
-    <script src="js/script.js"></script>
+    <div id="app"></div>
+    <script src="out.js"></script>
   </body>
   </html>

@@ -45,6 +45,7 @@ const (
 	groceriesRequestContextKey = "groceries"
 )
 
+// User ...
 type User struct {
 	Username string `json:"username"`
 }
