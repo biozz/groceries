@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"io"
-	"log"
+	"net"
 	"net/http"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 type LoggingHandler struct {
@@ -15,7 +19,16 @@ type LoggingHandler struct {
 
 type StatusRecorder struct {
 	http.ResponseWriter
+	http.Hijacker
 	status int
+}
+
+func (w *StatusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	h, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("hijack not supported")
+	}
+	return h.Hijack()
 }
 
 func (r *StatusRecorder) WriteHeader(status int) {
@@ -26,7 +39,7 @@ func (r *StatusRecorder) WriteHeader(status int) {
 func (h LoggingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	t := time.Now()
 	url := *req.URL
-	recorder := &StatusRecorder{w, 200}
+	recorder := &StatusRecorder{w, w.(http.Hijacker), 200}
 	h.handler.ServeHTTP(recorder, req)
 	if req.MultipartForm != nil {
 		req.MultipartForm.RemoveAll()

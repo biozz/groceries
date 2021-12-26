@@ -14,9 +14,6 @@ func getRequestContext(r *http.Request) *RequestContext {
 	authToken := r.Header.Get(authTokenHeader)
 	user, _ := users[authToken]
 	namespace := r.Header.Get(namespaceHeader)
-	if namespace == "" {
-		namespace = globalNamespace
-	}
 	return &RequestContext{
 		User:      &user,
 		Namespace: namespace,

@@ -2,11 +2,11 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/google/uuid"
+    "github.com/rs/zerolog/log"
 )
 
 type Handlers struct {
@@ -28,7 +28,7 @@ func (h *Handlers) ItemsHandler(w http.ResponseWriter, r *http.Request) {
 
 	rc := r.Context().Value(groceriesRequestContextKey).(*RequestContext)
 	keyPattern := rc.buildKeyPattern()
-	log.Println(keyPattern)
+	log.Print(keyPattern)
 	itemKeys, err := redis.ByteSlices(conn.Do("KEYS", keyPattern))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -71,7 +71,7 @@ func (h *Handlers) AddItemHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	data, _ := json.Marshal(item)
 	key := rc.buidlKey(uid)
-	log.Println(key)
+	log.Print(key)
 	conn.Do("SET", key, data)
 	w.Write(data)
 
@@ -89,7 +89,7 @@ func (h *Handlers) DeleteItemHandler(w http.ResponseWriter, r *http.Request) {
 	conn := h.pool.Get()
 	defer conn.Close()
 	key := rc.buidlKey(uid)
-	log.Println(key)
+	log.Print(key)
 	itemRaw, _ := redis.Bytes(conn.Do("GET", key))
 	if len(itemRaw) == 0 {
 		w.WriteHeader(http.StatusNotFound)

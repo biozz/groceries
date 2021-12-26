@@ -7,13 +7,14 @@ import (
 	"fmt"
 	"io/fs"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
+    "github.com/rs/zerolog"
+    "github.com/rs/zerolog/log"
 )
 
 const (
@@ -68,6 +69,8 @@ var (
 func main() {
 	flag.Parse()
 
+    zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+
 	users = map[string]User{
 		"admin": {Username: "admin"},
 	}
@@ -77,10 +80,9 @@ func main() {
 		users = map[string]User{}
 		err := json.Unmarshal(usersFile, &users)
 		if err != nil {
-			log.Fatalf("Unable to unmarshal users file: %v", err)
+			log.Fatal().Err(err).Msg("Unable to unmarshal users file")
 		}
 	}
-	log.Println(users)
 	pool := newRedisPool(*kvhost)
 	defer pool.Close()
 	hub := newHub()
@@ -89,12 +91,17 @@ func main() {
 
 	fsys, err := fs.Sub(static, "static")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err)
 	}
 	fileServer := http.FileServer(http.FS(fsys))
+
+    // Various dev settings
 	if *env == "dev" {
+        log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 		fileServer = http.FileServer(http.Dir("static"))
 	}
+
+	log.Print(users)
 
 	itemsMux := http.NewServeMux()
 	itemsMux.HandleFunc("/add", h.AddItemHandler)
@@ -109,7 +116,8 @@ func main() {
 		serveWS(hub, rw, r)
 	})
 	mux.Handle("/", fileServer)
-	log.Fatal(http.ListenAndServe(*bind, AddLogging(os.Stdout, mux)))
+    err = http.ListenAndServe(*bind, AddLogging(os.Stdout, mux))
+    log.Fatal().Err(err)
 }
 
 func newRedisPool(kvhost string) *redis.Pool {

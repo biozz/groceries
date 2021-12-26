@@ -3,11 +3,11 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"log"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/websocket"
+    "github.com/rs/zerolog/log"
 )
 
 type Hub struct {
@@ -131,7 +131,7 @@ func (c *Client) writePump() {
 func serveWS(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println(err)
+		log.Info().Err(err)
 		return
 	}
 	clientID := r.URL.Query().Get("client_id")
