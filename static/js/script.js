@@ -162,7 +162,7 @@ const app = Vue.createApp({
     },
     toggleHideEmptyCategories() {
       if (!this.hideCompleted) {
-        hideEmptyCategories = false;
+        this.hideEmptyCategories = false;
       }
     },
     async toggle(item) {
@@ -214,7 +214,7 @@ const app = Vue.createApp({
         this.editItemError = `${res.status} ${res.statusText}`;
         return;
       }
-      data = await res.json();
+      let data = await res.json();
       this.items.push(Object.assign(data, { state: "open" }));
       this.closeModal();
     },
