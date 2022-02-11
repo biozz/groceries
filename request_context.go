@@ -3,45 +3,43 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 type RequestContext struct {
-	User      *User
-	Namespace string
+	User            *User
+	NamespacePrefix string
+	Namespace       string
 }
 
 func getRequestContext(r *http.Request) *RequestContext {
 	authToken := r.Header.Get(authTokenHeader)
-	user, _ := users[authToken]
+	user := users[authToken]
 	namespace := r.Header.Get(namespaceHeader)
+	namespacePrefix := r.Header.Get(namespacePrefixHeader)
 	return &RequestContext{
-		User:      &user,
-		Namespace: namespace,
+		User:            &user,
+		Namespace:       namespace,
+		NamespacePrefix: namespacePrefix,
 	}
 }
 
 func (rc *RequestContext) isAuthorized() bool {
-	if rc.User.Username != "" {
-		return true
-	}
-	return false
+	return rc.User.Username != ""
 }
 
-// item:global:qwer-asdf-1234asdf - global keys
-// item:user:my:zcxv-asdf-qwer - user specific namespaces
+// item:g:default:qwer-asdf-1234asdf - global keys in default namespace
+// item:my:user:work:zcxv-asdf-qwer - user specific keys in work namespace
 func (rc *RequestContext) buidlKey(uid string) string {
-	key := "item"
-	if rc.Namespace != globalNamespace {
-		key = fmt.Sprintf("%s:%s", key, rc.User.Username)
+	keyParts := []string{"item", rc.NamespacePrefix}
+	if rc.NamespacePrefix == "my" {
+		keyParts = append(keyParts, rc.User.Username)
 	}
-	key = fmt.Sprintf("%s:%s", key, rc.Namespace)
-	// if rc.Namespace != globalNamespace {
-	// 	key = fmt.Sprintf("%s:", rc.User.Username)
-	// key = fmt.Sprintf("%s:", rc.Namespace)
+	keyParts = append(keyParts, rc.Namespace)
 	if uid != "" {
-		key = fmt.Sprintf("%s:%s", key, uid)
+		keyParts = append(keyParts, uid)
 	}
-	return key
+	return strings.Join(keyParts, ":")
 }
 
 func (rc *RequestContext) buildKeyPattern() string {

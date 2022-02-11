@@ -44,7 +44,7 @@ func (h LoggingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.MultipartForm != nil {
 		req.MultipartForm.RemoveAll()
 	}
-	dur := time.Now().Sub(t)
+	dur := time.Since(t)
 	log.Printf("%s %s %d %s", dur.String(), req.Method, recorder.status, &url)
 }
 
@@ -60,7 +60,7 @@ func ItemsMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		ctx := req.Context()
-		ctx = context.WithValue(ctx, "groceries", rc)
+		ctx = context.WithValue(ctx, groceriesRequestContextKey, rc)
 		groceriesRequest := req.Clone(ctx)
 		next.ServeHTTP(w, groceriesRequest)
 	})

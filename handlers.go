@@ -6,7 +6,7 @@ import (
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/google/uuid"
-    "github.com/rs/zerolog/log"
+	"github.com/rs/zerolog/log"
 )
 
 type Handlers struct {
@@ -15,10 +15,12 @@ type Handlers struct {
 }
 
 type Item struct {
-	UID       string `json:"uid"`
-	Name      string `json:"name"`
-	Category  string `json:"category"`
-	IsChecked bool   `json:"is_checked"`
+	UID             string `json:"uid"`
+	Name            string `json:"name"`
+	Category        string `json:"category"`
+	IsChecked       bool   `json:"is_checked"`
+	Namespace       string `json:"namespace"`
+	NamespacePrefix string `json:"namespace_prefix"`
 }
 
 func (h *Handlers) ItemsHandler(w http.ResponseWriter, r *http.Request) {
@@ -64,10 +66,12 @@ func (h *Handlers) AddItemHandler(w http.ResponseWriter, r *http.Request) {
 	category := r.URL.Query().Get("category")
 
 	item := Item{
-		UID:       uid,
-		Name:      name,
-		Category:  category,
-		IsChecked: false,
+		UID:             uid,
+		Name:            name,
+		Category:        category,
+		IsChecked:       false,
+		Namespace:       rc.Namespace,
+		NamespacePrefix: rc.NamespacePrefix,
 	}
 	data, _ := json.Marshal(item)
 	key := rc.buidlKey(uid)

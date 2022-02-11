@@ -25,6 +25,7 @@ const app = Vue.createApp({
       suggestedCategories: [],
       token: "",
       rawToken: "",
+      namespacePrefix: "",
       namespace: "",
     };
   },
@@ -67,7 +68,7 @@ const app = Vue.createApp({
       return this.editItemMode === "update";
     },
     isGlobalNamespace() {
-      return this.namespace === "global";
+      return this.namespace === "default" && this.namespacePrefix === "g";
     },
   },
   watch: {
@@ -87,11 +88,19 @@ const app = Vue.createApp({
       return {
         "X-WS-Client-ID": clientID,
         "X-Auth-Token": this.token,
+        "X-Namespace-Prefix": this.namespacePrefix,
         "X-Namespace": this.namespace,
       };
     },
     setNamespace() {
-      this.namespace = window.location.hash.substr(2) || "global";
+      let nsParts = window.location.hash.substring(2).split("/");
+      if (nsParts.length !== 2) {
+        this.namespacePrefix = "g";
+        this.namespace = "default";
+        return
+      }
+      this.namespacePrefix = nsParts[0];
+      this.namespace = nsParts[1];
     },
     clearSearch() {
       this.searchText = "";
@@ -280,6 +289,12 @@ const app = Vue.createApp({
     socket.addEventListener("message", (raw) => {
       let event = JSON.parse(raw.data);
       let idx = null;
+      if (event.data.namespace_prefix !== this.namespacePrefix) {
+        return
+      }
+      if (event.data.namespace !== this.namespace) {
+        return
+      }
       switch (event.type) {
         case "toggle":
           idx = this.items.findIndex((i) => i.uid === event.data.uid);

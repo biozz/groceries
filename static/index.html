@@ -42,7 +42,7 @@
                           @change="toggleHideEmptyCategories"
                         >
                       </div>
-                      <span class="input-group-text" v-if="!isGlobalNamespace">{{ namespace }}</span>
+                      <span class="input-group-text" v-if="!isGlobalNamespace">{{ namespacePrefix }}/{{ namespace }}</span>
                       <input type="text" class="form-control form-control-sm search-box" v-model="searchText" />
                       <button class="btn btn-secondary" @click="clearSearch">X</button>
                     </div>
@@ -70,7 +70,7 @@
                             <button  @click="addItem" class="btn btn-primary">Добавить</button>&nbsp
                           </div>
                           <button @click="closeModal" class="btn btn-outline-secondary text-end">Закрыть</button>
-                          <span v-if="editItemError">({editItemError})</span>
+                          <span v-if="editItemError">({{ editItemError }})</span>
                         </div>
                       </div>
                     </div>

@@ -13,8 +13,8 @@ import (
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
-    "github.com/rs/zerolog"
-    "github.com/rs/zerolog/log"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -39,12 +39,14 @@ const (
 	// Namespace is used for handling multiple todo lists
 	namespaceHeader = "x-namespace"
 
-	// Used to separate different task lists
-	globalNamespace = "global"
+	// Namespace prefix can be "g" for "global" and "my" for "personal"
+	namespacePrefixHeader = "x-namespace-prefix"
 
 	// Use to get request context
-	groceriesRequestContextKey = "groceries"
+	groceriesRequestContextKey RequestContextKey = "groceries"
 )
+
+type RequestContextKey string
 
 type User struct {
 	Username string `json:"username"`
@@ -69,7 +71,7 @@ var (
 func main() {
 	flag.Parse()
 
-    zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 
 	users = map[string]User{
 		"admin": {Username: "admin"},
@@ -95,9 +97,9 @@ func main() {
 	}
 	fileServer := http.FileServer(http.FS(fsys))
 
-    // Various dev settings
+	// Various dev settings
 	if *env == "dev" {
-        log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 		fileServer = http.FileServer(http.Dir("static"))
 	}
 
@@ -116,8 +118,8 @@ func main() {
 		serveWS(hub, rw, r)
 	})
 	mux.Handle("/", fileServer)
-    err = http.ListenAndServe(*bind, AddLogging(os.Stdout, mux))
-    log.Fatal().Err(err)
+	err = http.ListenAndServe(*bind, AddLogging(os.Stdout, mux))
+	log.Fatal().Err(err)
 }
 
 func newRedisPool(kvhost string) *redis.Pool {
